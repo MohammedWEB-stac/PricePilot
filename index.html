@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PricePilot</title>
+<style>
+:root{--bg:#0b1020;--panel:#151e32;--text:#f5f7ff;--muted:#9eabc2;--blue:#5795ff;--green:#37d6a0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
+header{padding:22px 6%;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #26324a}
+.logo{font-size:25px;font-weight:bold}.logo span{color:var(--blue)}
+button,input,select{font:inherit}
+button{cursor:pointer;border:0;border-radius:10px;padding:12px 16px;background:var(--blue);color:white;font-weight:bold}
+button.secondary{background:#263550}
+main{max-width:1100px;margin:30px auto;padding:0 20px}
+h1{font-size:34px;margin-bottom:8px}h2{font-size:20px}
+.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px}
+.panel{background:var(--panel);padding:22px;border:1px solid #263550;border-radius:16px;margin-bottom:20px}
+label{display:block;color:var(--muted);font-size:14px;margin:14px 0 7px}
+input,select{width:100%;padding:13px;background:#0d1629;border:1px solid #35445e;border-radius:9px;color:white}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.result{font-size:28px;font-weight:bold;color:var(--green);margin:8px 0}
+.stat{font-size:26px;font-weight:bold;margin-top:8px}
+.history-item,.product-item{padding:12px 0;border-bottom:1px solid #2b3850;display:flex;justify-content:space-between;gap:10px}
+.small{font-size:13px;color:var(--muted)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
+footer{text-align:center;color:var(--muted);padding:30px}
+@media(max-width:750px){.grid{grid-template-columns:1fr}header{padding:18px 20px}h1{font-size:27px}.row{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Price<span>Pilot</span></div>
+  <button class="secondary" id="language">English</button>
+</header>
+
+<main>
+  <h1 id="welcome">Calcule tes prix. Protège tes bénéfices.</h1>
+  <p class="muted" id="subtitle">Un outil simple pour les vendeurs et les petits entrepreneurs.</p>
+
+  <div class="grid">
+    <section>
+      <div class="panel">
+        <h2 id="calculatorTitle">Calculateur de prix et bénéfices</h2>
+        <label id="productLabel">Nom du produit</label>
+        <input id="product" placeholder="Ex. : T-shirt">
+        <div class="row">
+          <div>
+            <label id="buyLabel">Prix d'achat ($)</label>
+            <input id="buy" type="number" min="0" step="0.01" placeholder="10">
+          </div>
+          <div>
+            <label id="packLabel">Emballage ($)</label>
+            <input id="pack" type="number" min="0" step="0.01" placeholder="2">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label id="feesLabel">Autres frais ($)</label>
+            <input id="fees" type="number" min="0" step="0.01" placeholder="1">
+          </div>
+          <div>
+            <label id="profitLabel">Bénéfice souhaité ($)</label>
+            <input id="target" type="number" min="0" step="0.01" placeholder="7">
+          </div>
+        </div>
+        <div class="actions">
+          <button id="calculate">Calculer le prix</button>
+          <button class="secondary" id="save" disabled>Enregistrer</button>
+        </div>
+        <div id="result" class="panel" style="margin:18px 0 0;display:none">
+          <p class="muted" id="costLabel">Coût total</p>
+          <div id="costResult" class="stat"></div>
+          <p class="muted" id="priceLabel">Prix de vente conseillé</p>
+          <div id="priceResult" class="result"></div>
+          <p class="muted" id="actualProfitLabel">Bénéfice prévu</p>
+          <div id="profitResult" class="stat"></div>
+        </div>
+        <p class="small" id="taxNote">Les taxes éventuelles ne sont pas incluses dans ce calcul.</p>
+      </div>
+
+      <div class="panel">
+        <h2 id="productsTitle">Mes produits</h2>
+        <div class="actions">
+          <input id="newProduct" placeholder="Nom du nouveau produit">
+          <button id="addProduct">Ajouter</button>
+        </div>
+        <div id="productsList"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="panel">
+        <h2 id="dashboardTitle">Tableau de bord</h2>
+        <p class="muted" id="totalLabel">Bénéfices prévus enregistrés</p>
+        <div class="stat" id="totalProfit">$0.00</div>
+        <p class="muted" id="countLabel">Calculs enregistrés</p>
+        <div class="stat" id="count">0</div>
+      </div>
+      <div class="panel">
+        <h2 id="historyTitle">Historique des calculs</h2>
+        <div id="history"></div>
+        <div class="actions">
+          <button class="secondary" id="clear">Effacer l'historique</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+<footer>PricePilot © 2026 — <span id="footerText">Ton assistant de prix.</span></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let language = "fr";
+let lastCalculation = null;
+let history = JSON.parse(localStorage.getItem("pp_history") || "[]");
+let products = JSON.parse(localStorage.getItem("pp_products") || "[]");
+
+const translations = {
+ fr:{
+  welcome:"Calcule tes prix. Protège tes bénéfices.",
+  subtitle:"Un outil simple pour les vendeurs et les petits entrepreneurs.",
+  calculatorTitle:"Calculateur de prix et bénéfices",
+  productLabel:"Nom du produit",buyLabel:"Prix d'achat ($)",
+  packLabel:"Emballage ($)",feesLabel:"Autres frais ($)",
+  profitLabel:"Bénéfice souhaité ($)",calculate:"Calculer le prix",
+  save:"Enregistrer",costLabel:"Coût total",
+  priceLabel:"Prix de vente conseillé",actualProfitLabel:"Bénéfice prévu",
+  taxNote:"Les taxes éventuelles ne sont pas incluses dans ce calcul.",
+  productsTitle:"Mes produits",addProduct:"Ajouter",
+  dashboardTitle:"Tableau de bord",totalLabel:"Bénéfices prévus enregistrés",
+  countLabel:"Calculs enregistrés",historyTitle:"Historique des calculs",
+  clear:"Effacer l'historique",footerText:"Ton assistant de prix.",
+  empty:"Aucun calcul enregistré.",emptyProducts:"Aucun produit.",
+  productRequired:"Écris un nom de produit.",
+  invalid:"Entre des montants valides, égaux ou supérieurs à zéro.",
+  added:"Produit ajouté."
+ },
+ en:{
+  welcome:"Price your products. Protect your profits.",
+  subtitle:"A simple tool for sellers and small business owners.",
+  calculatorTitle:"Price and profit calculator",
+  productLabel:"Product name",buyLabel:"Purchase price ($)",
+  packLabel:"Packaging ($)",feesLabel:"Other costs ($)",
+  profitLabel:"Desired profit ($)",calculate:"Calculate price",
+  save:"Save",costLabel:"Total cost",
+  priceLabel:"Suggested selling price",actualProfitLabel:"Expected profit",
+  taxNote:"Any applicable taxes are not included in this calculation.",
+  productsTitle:"My products",addProduct:"Add",
+  dashboardTitle:"Dashboard",totalLabel:"Saved expected profits",
+  countLabel:"Saved calculations",historyTitle:"Calculation history",
+  clear:"Clear history",footerText:"Your pricing assistant.",
+  empty:"No saved calculations.",emptyProducts:"No products.",
+  productRequired:"Enter a product name.",
+  invalid:"Enter valid amounts equal to or greater than zero.",
+  added:"Product added."
+ }
+};
+
+function money(value){
+ return new Intl.NumberFormat(language==="fr"?"fr-CA":"en-CA",
+ {style:"currency",currency:"CAD"}).format(value);
+}
+
+function translate(){
+ const t=translations[language];
+ Object.keys(t).forEach(key=>{
+  if($(key)) $(key).textContent=t[key];
+ });
+ $("language").textContent=language==="fr"?"English":"Français";
+ $("calculate").textContent=t.calculate;
+ $("save").textContent=t.save;
+ $("clear").textContent=t.clear;
+ $("addProduct").textContent=t.addProduct;
+ document.documentElement.lang=language;
+ render();
+}
+
+$("language").onclick=()=>{
+ language=language==="fr"?"en":"fr";
+ translate();
+};
+
+$("calculate").onclick=()=>{
+ const name=$("product").value.trim();
+ const buy=Number($("buy").value);
+ const pack=Number($("pack").value);
+ const fees=Number($("fees").value);
+ const target=Number($("target").value);
+ if(!name){alert(translations[language].productRequired);return;}
+ if([buy,pack,fees,target].some(v=>!Number.isFinite(v)||v<0)||
+ ["buy","pack","fees","target"].some(id=>$(id).value==="")){
+  alert(translations[language].invalid);return;
+ }
+ const cost=buy+pack+fees;
+ const price=cost+target;
+ lastCalculation={name,buy,pack,fees,target,cost,price,date:new Date().toLocaleString()};
+ $("costResult").textContent=money(cost);
+ $("priceResult").textContent=money(price);
+ $("profitResult").textContent=money(target);
+ $("result").style.display="block";
+ $("save").disabled=false;
+};
+
+$("save").onclick=()=>{
+ if(!lastCalculation)return;
+ history.unshift(lastCalculation);
+ localStorage.setItem("pp_history",JSON.stringify(history));
+ lastCalculation=null;
+ $("save").disabled=true;
+ render();
+};
+
+$("addProduct").onclick=()=>{
+ const name=$("newProduct").value.trim();
+ if(!name){alert(translations[language].productRequired);return;}
+ products.push(name);
+ products=[...new Set(products)];
+ localStorage.setItem("pp_products",JSON.stringify(products));
+ $("newProduct").value="";
+ render();
+ alert(translations[language].added);
+};
+
+$("clear").onclick=()=>{
+ if(confirm(language==="fr"?"Effacer tous les calculs ?":"Delete all calculations?")){
+  history=[];
+  localStorage.setItem("pp_history",JSON.stringify(history));
+  render();
+ }
+};
+
+function render(){
+ const t=translations[language];
+ $("history").innerHTML=history.length?"":`<p class="muted">${t.empty}</p>`;
+ history.forEach(item=>{
+  const div=document.createElement("div");
+  div.className="history-item";
+  const left=document.createElement("div");
+  const name=document.createElement("strong");
+  name.textContent=item.name;
+  const date=document.createElement("div");
+  date.className="small";
+  date.textContent=item.date;
+  left.append(name,date);
+  const right=document.createElement("strong");
+  right.textContent=money(item.target);
+  div.append(left,right);
+  $("history").append(div);
+ });
+ $("totalProfit").textContent=money(history.reduce((sum,item)=>sum+item.target,0));
+ $("count").textContent=history.length;
+ $("productsList").innerHTML="";
+ if(!products.length){
+  $("productsList").textContent=t.emptyProducts;
+ }
+ products.forEach(name=>{
+  const div=document.createElement("div");
+  div.className="product-item";
+  const span=document.createElement("span");
+  span.textContent=name;
+  const btn=document.createElement("button");
+  btn.className="secondary";
+  btn.textContent=language==="fr"?"Utiliser":"Use";
+  btn.onclick=()=>{$("product").value=name;window.scrollTo({top:0,behavior:"smooth"});};
+  div.append(span,btn);
+  $("productsList").append(div);
+ });
+}
+translate();
+</script>
+</body>
+</html>
